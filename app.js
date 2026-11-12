@@ -4,8 +4,7 @@ import { initializeApp } from
 import {
   getDatabase,
   ref,
-  onValue,
-  runTransaction
+  onValue
 } from
   "https://www.gstatic.com/firebasejs/12.6.0/firebase-database.js";
 
@@ -20,6 +19,52 @@ const firebaseConfig = {
   appId: "1:699586941802:web:d643aa58a53f6600700b13",
   measurementId: "G-0FNMT6NSVH"
 };
+
+// Google Apps Script API. Keep this URL in sync with the deployed Web App.
+const API_URL = "https://script.google.com/macros/s/AKfycbyvk-hhak1TmeHWAeWxkfEWWwWadu-0RAgyR8SOOGf_NJ5Rl886wla4aeMkuk-blAMimA/exec";
+
+// JSONP lets the Mini App call Google Apps Script without browser CORS issues.
+function apiCall(action, data = {}) {
+  return new Promise((resolve, reject) => {
+    const callbackName = "checkersApi_" + Date.now() + "_" + Math.random().toString(36).slice(2);
+    const payload = {
+      action,
+      roomId,
+      initData: tg?.initData || "",
+      ...data
+    };
+    const script = document.createElement("script");
+    let finished = false;
+
+    const cleanup = () => {
+      if (finished) return;
+      finished = true;
+      delete window[callbackName];
+      script.remove();
+      clearTimeout(timeout);
+    };
+
+    window[callbackName] = (result) => {
+      cleanup();
+      if (result && result.ok) resolve(result);
+      else reject(new Error(result?.error || "Ошибка игрового сервера"));
+    };
+
+    script.onerror = () => {
+      cleanup();
+      reject(new Error("Не удалось связаться с игровым сервером."));
+    };
+
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error("Игровой сервер не ответил вовремя."));
+    }, 20000);
+
+    script.src = API_URL + "?callback=" + encodeURIComponent(callbackName) +
+      "&payload=" + encodeURIComponent(JSON.stringify(payload));
+    document.head.appendChild(script);
+  });
+}
 
 // Telegram
 const tg = window.Telegram?.WebApp;
@@ -402,7 +447,7 @@ function render() {
 }
 
 function handleCellClick(index) {
-  if (!game || game.status !== "active" || !myPlayer) return;
+  if (!game || game.status !== "active" || !myPlayer || !joined) return;
   if (busy) return;
 
   if (game.turn !== myPlayer) {
@@ -465,175 +510,34 @@ async function submitMove(chosenMove) {
   render();
 
   try {
-    const result = await runTransaction(gameRef, current => {
-      if (!current || current.status !== "active" || Number(current.turn) !== myPlayer) {
-        return;
-      }
-
-      const legalMoves = generateLegalMoves(current.board, myPlayer);
-      const legal = legalMoves.find(move =>
-        move.from === chosenMove.from && move.to === chosenMove.to
-      );
-      if (!legal) return;
-
-      const nextBoard = applyMove(current.board, legal);
-      const nextTurn = myPlayer === RED ? BLACK : RED;
-      const nextMoves = generateLegalMoves(nextBoard, nextTurn);
-      const remaining = countPieces(nextBoard, nextTurn);
-
-      const now = Date.now();
-      const moveCount = Number(current.moveCount || 0) + 1;
-      const quietPly = legal.captures.length > 0 ||
-        nextBoard[legal.to] !== current.board[legal.from]
-          ? 0
-          : Number(current.quietPly || 0) + 1;
-
-      const history = current.positionHistory || {};
-      const key = positionKey(nextBoard, nextTurn);
-      const repetitions = Number(history[key] || 0) + 1;
-      const updatedHistory = { ...history, [key]: repetitions };
-
-      let status = "active";
-      let winner = null;
-      let resultReason = "";
-
-      if (remaining === 0 || nextMoves.length === 0) {
-        status = "finished";
-        winner = myPlayer;
-        resultReason = remaining === 0
-          ? "У соперника не осталось шашек."
-          : "У соперника не осталось доступных ходов.";
-      } else if (repetitions >= 3) {
-        status = "draw";
-        resultReason = "Ничья: позиция повторилась три раза.";
-      } else if (quietPly >= 80) {
-        status = "draw";
-        resultReason = "Ничья: 80 полуходов без взятия или превращения в дамку.";
-      }
-
-      return {
-        ...current,
-        board: nextBoard,
-        turn: nextTurn,
-        status,
-        winner,
-        resultReason,
-        lastMove: {
-          from: legal.from,
-          to: legal.to,
-          captures: legal.captures,
-          player: myPlayer,
-          at: now
-        },
-        moveCount,
-        quietPly,
-        positionHistory: updatedHistory,
-        updatedAt: now,
-        finishedAt: status === "active" ? null : now,
-        drawOffer: null,
-        rematchVotes: {}
-      };
-    }, { applyLocally: false });
-
-    if (!result.committed) {
-      setStatus("Ход не принят. Возможно, состояние игры уже изменилось. Обновите страницу.");
-    }
+    await apiCall("move", {
+      from: chosenMove.from,
+      to: chosenMove.to
+    });
+    setStatus("Ход отправлен.");
   } catch (error) {
     console.error(error);
-    setStatus("Не удалось сохранить ход. Проверьте соединение с Firebase.");
+    setStatus(error.message || "Сервер не принял ход.");
   } finally {
     busy = false;
     render();
   }
 }
 
-async function ensureGameStarted(currentPlayers) {
-  if (!currentPlayers["1"] || !currentPlayers["2"]) return;
-
-  try {
-    await runTransaction(gameRef, current => {
-      const now = Date.now();
-
-      if (!current) {
-        const board = initialBoard();
-        const history = {};
-        history[positionKey(board, RED)] = 1;
-
-        return {
-          status: "active",
-          board,
-          turn: RED,
-          createdAt: now,
-          updatedAt: now,
-          moveCount: 0,
-          quietPly: 0,
-          positionHistory: history,
-          rematchVotes: {}
-        };
-      }
-
-      if (current.status === "waiting") {
-        return {
-          ...current,
-          status: "active",
-          updatedAt: now
-        };
-      }
-
-      return current;
-    }, { applyLocally: false });
-  } catch (error) {
-    console.error(error);
-    setStatus("Не удалось запустить партию. Проверьте доступ к Firebase.");
-  }
-}
-
 async function joinRoom() {
   setStatus("Подключаемся к комнате...");
-  const joinedAt = Date.now();
-
-  const myData = {
-    id: myUserId,
-    name: myName,
-    username: myUsername,
-    joinedAt
-  };
 
   try {
-    const result = await runTransaction(playersRef, currentPlayers => {
-      const current = currentPlayers || {};
-
-      for (const slot of ["1", "2"]) {
-        if (current[slot]?.id === myUserId) return current;
-      }
-
-      if (!current["1"]) return { ...current, "1": myData };
-      if (!current["2"]) return { ...current, "2": myData };
-
-      return;
-    }, { applyLocally: false });
-
-    const registered = result.snapshot.val() || {};
-
-    if (registered["1"]?.id === myUserId) myPlayer = RED;
-    else if (registered["2"]?.id === myUserId) myPlayer = BLACK;
-    else {
-      el.player1Name.textContent = registered["1"]?.name || "Занято";
-      el.player2Name.textContent = registered["2"]?.name || "Занято";
-      setStatus("Комната уже заполнена. Оба места заняты. Создайте новую через /play.");
-      return;
-    }
-
-    players = registered;
+    const result = await apiCall("join");
+    myPlayer = Number(result.player);
+    players = result.players || {};
     joined = true;
     updatePlayersUI();
     setStatus(myPlayer === RED ? "Вы играете красными." : "Вы играете чёрными.");
-
-    await ensureGameStarted(registered);
     render();
   } catch (error) {
     console.error(error);
-    setStatus("Не удалось подключиться. Проверьте Firebase и правила доступа.");
+    setStatus(error.message || "Не удалось подключиться к комнате.");
   }
 }
 
@@ -642,9 +546,6 @@ onValue(playersRef, snapshot => {
   players = snapshot.val() || {};
   updatePlayersUI();
 
-  if (joined && players["1"] && players["2"]) {
-    ensureGameStarted(players);
-  }
 }, error => {
   console.error(error);
   setStatus("Ошибка загрузки игроков из Firebase.");
@@ -677,25 +578,11 @@ async function resign() {
 
   busy = true;
   render();
-
   try {
-    const now = Date.now();
-    await runTransaction(gameRef, current => {
-      if (!current || current.status !== "active") return;
-      return {
-        ...current,
-        status: "finished",
-        winner: myPlayer === RED ? BLACK : RED,
-        resultReason: `${getName(myPlayer)} сдался.`,
-        finishedAt: now,
-        updatedAt: now,
-        drawOffer: null,
-        rematchVotes: {}
-      };
-    }, { applyLocally: false });
+    await apiCall("resign");
   } catch (error) {
     console.error(error);
-    setStatus("Не удалось завершить партию.");
+    setStatus(error.message || "Не удалось завершить партию.");
   } finally {
     busy = false;
     render();
@@ -704,44 +591,13 @@ async function resign() {
 
 async function handleDrawButton() {
   if (!game || game.status !== "active" || busy) return;
-
   busy = true;
   render();
-
   try {
-    const now = Date.now();
-    await runTransaction(gameRef, current => {
-      if (!current || current.status !== "active") return;
-
-      if (current.drawOffer && Number(current.drawOffer.by) !== myPlayer) {
-        return {
-          ...current,
-          status: "draw",
-          resultReason: "Игроки согласились на ничью.",
-          finishedAt: now,
-          updatedAt: now,
-          drawOffer: null,
-          rematchVotes: {}
-        };
-      }
-
-      if (current.drawOffer && Number(current.drawOffer.by) === myPlayer) {
-        return {
-          ...current,
-          drawOffer: null,
-          updatedAt: now
-        };
-      }
-
-      return {
-        ...current,
-        drawOffer: { by: myPlayer, at: now },
-        updatedAt: now
-      };
-    }, { applyLocally: false });
+    await apiCall("draw");
   } catch (error) {
     console.error(error);
-    setStatus("Не удалось отправить предложение ничьей.");
+    setStatus(error.message || "Не удалось отправить предложение ничьей.");
   } finally {
     busy = false;
     render();
@@ -750,47 +606,14 @@ async function handleDrawButton() {
 
 async function requestRematch() {
   if (!game || !["finished", "draw"].includes(game.status) || busy) return;
-
   busy = true;
   render();
-
   try {
-    const now = Date.now();
-    const result = await runTransaction(gameRef, current => {
-      if (!current || !["finished", "draw"].includes(current.status)) return;
-
-      const votes = { ...(current.rematchVotes || {}), [String(myPlayer)]: true };
-
-      if (votes["1"] && votes["2"]) {
-        const board = initialBoard();
-        const history = {};
-        history[positionKey(board, RED)] = 1;
-
-        return {
-          status: "active",
-          board,
-          turn: RED,
-          createdAt: now,
-          updatedAt: now,
-          moveCount: 0,
-          quietPly: 0,
-          positionHistory: history,
-          rematchVotes: {},
-          lastMove: null
-        };
-      }
-
-      return {
-        ...current,
-        rematchVotes: votes,
-        updatedAt: now
-      };
-    }, { applyLocally: false });
-
-    if (result.committed) setStatus("Запрос на реванш отправлен. Нужен ответ соперника.");
+    await apiCall("rematch");
+    setStatus("Запрос на реванш отправлен. Нужен ответ соперника.");
   } catch (error) {
     console.error(error);
-    setStatus("Не удалось запросить реванш.");
+    setStatus(error.message || "Не удалось запросить реванш.");
   } finally {
     busy = false;
     render();
