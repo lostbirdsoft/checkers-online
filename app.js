@@ -8,14 +8,16 @@ import {
 
 // 1) Вставьте сюда настройки своего Firebase Web App.
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  databaseURL: "https://YOUR_DATABASE_URL",
-  projectId: "YOUR_PROJECT",
-  storageBucket: "YOUR_PROJECT.firebasestorage.app",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyD7oB0s8JeixcG8jqfT1XktAcTwjTC4_vM",
+  authDomain: "lostbird-checkers.firebaseapp.com",
+  databaseURL: "https://lostbird-checkers-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "lostbird-checkers",
+  storageBucket: "lostbird-checkers.firebasestorage.app",
+  messagingSenderId: "699586941802",
+  appId: "1:699586941802:web:d643aa58a53f6600700b13",
+  measurementId: "G-0FNMT6NSVH"
 };
+
 
 const tg = window.Telegram?.WebApp;
 if (tg) {
