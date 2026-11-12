@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#17191f">
   <title>Шашки онлайн</title>
   <link rel="stylesheet" href="style.css">
@@ -11,13 +11,60 @@
 </head>
 <body>
   <main class="game">
-    <h1>Шашки онлайн</h1>
-    <div class="game-info">
-      <span id="playerInfo">Подключение...</span>
-      <span id="turnInfo">Ожидание игры</span>
-    </div>
-    <div id="board" class="board" aria-label="Игровая доска"></div>
-    <p id="status" role="status">Подключаемся к Firebase...</p>
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">LOSTBIRD SOFT</div>
+        <h1>Шашки онлайн</h1>
+      </div>
+      <div class="room-tag" id="roomInfo">КОМНАТА</div>
+    </header>
+
+    <section class="players" aria-label="Игроки">
+      <div class="player-card" id="playerCard2">
+        <span class="piece-dot black-dot"></span>
+        <div class="player-meta">
+          <span class="player-label">ЧЁРНЫЕ · ИГРОК 2</span>
+          <strong id="player2Name">Ожидание игрока</strong>
+        </div>
+        <span class="player-state" id="player2State">ОЖИДАНИЕ</span>
+      </div>
+      <div class="player-card" id="playerCard1">
+        <span class="piece-dot red-dot"></span>
+        <div class="player-meta">
+          <span class="player-label">КРАСНЫЕ · ИГРОК 1</span>
+          <strong id="player1Name">Ожидание игрока</strong>
+        </div>
+        <span class="player-state" id="player1State">ОЖИДАНИЕ</span>
+      </div>
+    </section>
+
+    <section class="game-panel">
+      <div class="game-heading">
+        <div>
+          <div class="eyebrow">ТЕКУЩАЯ ПАРТИЯ</div>
+          <h2 id="turnInfo">Подключение...</h2>
+        </div>
+        <span class="game-status" id="gameStatus">ПОДКЛЮЧЕНИЕ</span>
+      </div>
+
+      <div id="board" class="board" aria-label="Игровая доска 8 на 8"></div>
+
+      <div class="board-legend">
+        <span><i class="legend-dot red-dot"></i> Красные</span>
+        <span><i class="legend-dot black-dot"></i> Чёрные</span>
+        <span>♛ Дамка</span>
+      </div>
+    </section>
+
+    <p id="status" class="status" role="status" aria-live="polite">Подключаемся к Firebase...</p>
+
+    <section class="actions">
+      <button id="drawButton" class="button button-secondary" type="button" disabled>Предложить ничью</button>
+      <button id="resignButton" class="button button-danger" type="button" disabled>Сдаться</button>
+      <button id="rematchButton" class="button button-primary" type="button" hidden>Реванш</button>
+    </section>
+
+    <footer>Русские шашки · 8 × 8</footer>
   </main>
 </body>
 </html>
