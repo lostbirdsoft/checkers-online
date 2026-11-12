@@ -26,11 +26,14 @@ const API_URL = "https://script.google.com/macros/s/AKfycbyvk-hhak1TmeHWAeWxkfEW
 // JSONP lets the Mini App call Google Apps Script without browser CORS issues.
 function apiCall(action, data = {}) {
   return new Promise((resolve, reject) => {
+    const requestStarted = performance.now();
+    const clientSentAt = Date.now();
     const callbackName = "checkersApi_" + Date.now() + "_" + Math.random().toString(36).slice(2);
     const payload = {
       action,
       roomId,
       initData: tg?.initData || "",
+      clientSentAt,
       ...data
     };
     const script = document.createElement("script");
@@ -45,17 +48,40 @@ function apiCall(action, data = {}) {
     };
 
     window[callbackName] = (result) => {
+      const durationMs = performance.now() - requestStarted;
+
+      savePerf({
+        type: "api_response",
+        action,
+        durationMs: Number(durationMs.toFixed(2)),
+        server: result?.perf || null,
+        success: !!result?.ok
+      });
+
       cleanup();
       if (result && result.ok) resolve(result);
       else reject(new Error(result?.error || "Ошибка игрового сервера"));
     };
 
     script.onerror = () => {
+      savePerf({
+        type: "api_error",
+        action,
+        durationMs: Number((performance.now() - requestStarted).toFixed(2)),
+        error: "Network error"
+      });
+
       cleanup();
       reject(new Error("Не удалось связаться с игровым сервером."));
     };
 
     const timeout = setTimeout(() => {
+      savePerf({
+        type: "api_timeout",
+        action,
+        durationMs: Number((performance.now() - requestStarted).toFixed(2))
+      });
+
       cleanup();
       reject(new Error("Игровой сервер не ответил вовремя."));
     }, 20000);
@@ -135,6 +161,68 @@ let selected = null;
 let legalMovesForSelection = [];
 let busy = false;
 let joined = false;
+
+// ---------- CHECKERS PERFORMANCE DIAGNOSTICS ----------
+
+const PERF_STORAGE_KEY = "checkers_perf_" + roomId;
+const perfLog = [];
+
+function savePerf(entry) {
+  const record = {
+    time: new Date().toISOString(),
+    roomId,
+    player: myPlayer || null,
+    ...entry
+  };
+
+  perfLog.push(record);
+
+  try {
+    const previous = JSON.parse(localStorage.getItem(PERF_STORAGE_KEY) || "[]");
+    previous.push(record);
+
+    // Ограничиваем журнал последними 2000 событиями.
+    localStorage.setItem(
+      PERF_STORAGE_KEY,
+      JSON.stringify(previous.slice(-2000))
+    );
+  } catch (error) {
+    console.warn("Не удалось сохранить журнал производительности:", error);
+  }
+
+  console.log("[CHECKERS PERF]", record);
+}
+
+window.checkersPerf = {
+  show() {
+    const records = JSON.parse(localStorage.getItem(PERF_STORAGE_KEY) || "[]");
+    console.table(records);
+    return records;
+  },
+
+  download() {
+    const records = JSON.parse(localStorage.getItem(PERF_STORAGE_KEY) || "[]");
+    const blob = new Blob(
+      [JSON.stringify(records, null, 2)],
+      { type: "application/json" }
+    );
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "checkers-performance-" + roomId + ".json";
+    link.click();
+
+    URL.revokeObjectURL(url);
+  },
+
+  clear() {
+    localStorage.removeItem(PERF_STORAGE_KEY);
+    console.log("Журнал производительности очищен.");
+  }
+};
+
+// -----------------------------------------------------
 
 const RED = 1;
 const BLACK = 2;
@@ -505,6 +593,16 @@ function handleCellClick(index) {
 async function submitMove(chosenMove) {
   if (busy) return;
   busy = true;
+
+  const moveStarted = performance.now();
+
+  savePerf({
+    type: "move_started",
+    from: chosenMove.from,
+    to: chosenMove.to,
+    moveCount: Number(game?.moveCount || 0)
+  });
+
   selected = null;
   legalMovesForSelection = [];
   render();
@@ -513,6 +611,10 @@ async function submitMove(chosenMove) {
     await apiCall("move", {
       from: chosenMove.from,
       to: chosenMove.to
+    });
+    savePerf({
+      type: "move_request_completed",
+      durationMs: Number((performance.now() - moveStarted).toFixed(2))
     });
     setStatus("Ход отправлен.");
   } catch (error) {
@@ -553,6 +655,17 @@ onValue(playersRef, snapshot => {
 
 onValue(gameRef, snapshot => {
   const value = snapshot.val();
+
+  if (value && value.updatedAt) {
+    const receiveDelay = Date.now() - Number(value.updatedAt);
+
+    savePerf({
+      type: "firebase_game_update",
+      moveCount: Number(value.moveCount || 0),
+      turn: Number(value.turn || 0),
+      receiveDelayMs: receiveDelay
+    });
+  }
 
   if (!value) {
     game = {
