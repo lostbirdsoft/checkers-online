@@ -221,11 +221,11 @@ function playMoveSound() {
 
 // ---------- РЕКЛАМА: универсальный слой (Interstitial после партии) ----------
 // Выбор рекламной сети одним флагом: "adsgram" | "tads" | "monetag" | "test" (своя заглушка для тестов, без сетей) | "none" (выключена).
-const ADS_PROVIDER = "adsgram";
+const ADS_PROVIDER = "test";
 
 const ADSGRAM_BLOCK_ID = "int-59594";
 const TADS_WIDGET_ID = 13281;  // вставь сюда ID виджета из кабинета tads.me (пока null — Tads не запускается)
-const ADS_SHOW_ERRORS = true;  // true = при проблеме с рекламой показывать окно с причиной (для тестов), потом поставь false
+const ADS_SHOW_ERRORS = false;  // true = при проблеме с рекламой показывать окно с причиной (для тестов), потом поставь false
 const TADS_DEBUG = true;       // true = тест (просмотры не считаются), для боевого режима поставь false
 
 // Чтобы добавить новую сеть, достаточно добавить сюда запись:
