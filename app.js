@@ -208,6 +208,17 @@ async function wsCall(action, data = {}) {
   }
 }
 
+// Звук хода: файл move.mp3 лежит рядом с app.js. Если файла нет, игра просто работает без звука.
+const moveSound = new Audio("move.mp3");
+moveSound.preload = "auto";
+
+function playMoveSound() {
+  try {
+    moveSound.currentTime = 0;
+    moveSound.play().catch(() => {});
+  } catch (e) {}
+}
+
 function applyWorkerState(msg) {
   players = msg.players || {};
   updatePlayersUI();
@@ -219,6 +230,10 @@ function applyWorkerState(msg) {
       turn: Number(msg.game.turn || 0),
       receiveDelayMs: Date.now() - Number(msg.game.updatedAt)
     });
+  }
+
+  if (msg.game && game && Number(msg.game.moveCount || 0) > Number(game.moveCount || 0)) {
+    playMoveSound();
   }
 
   game = msg.game || { status: "waiting", board: initialBoard(), turn: RED };
