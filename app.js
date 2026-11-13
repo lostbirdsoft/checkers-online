@@ -225,11 +225,39 @@ const ADS_PROVIDER = "tads";
 
 const ADSGRAM_BLOCK_ID = "int-59594";
 const TADS_WIDGET_ID = 13281;  // вставь сюда ID виджета из кабинета tads.me (пока null — Tads не запускается)
-const ADS_SHOW_ERRORS = false;  // true = при проблеме с рекламой показывать окно с причиной (для тестов), потом поставь false
+const ADS_SHOW_ERRORS = true;  // true = при проблеме с рекламой показывать окно с причиной (для тестов), потом поставь false
 const TADS_DEBUG = false;      // true = тест (просмотры не считаются), для боевого режима поставь false
 
 // Чтобы добавить новую сеть, достаточно добавить сюда запись:
 // script — адрес SDK, create() — создаёт показ и возвращает функцию () => Promise (или null, если сеть не настроена).
+// Диагностика Tads: showAd() только заказывает шаблон рекламы, а сама реклама рисуется позже.
+// Эта функция несколько секунд следит, что именно произошло после заказа (для тестов, флаг ADS_SHOW_ERRORS).
+function watchTadsRender(ms) {
+  return new Promise((resolve) => {
+    const seen = [];
+    const add = (s) => { if (!seen.includes(s)) seen.push(s); };
+    const onMsg = (e) => { if (typeof e.data === "string" && e.data.indexOf("FULLSCREEN") === 0) add("msg:" + e.data); };
+    const onRes = (e) => {
+      const t = e.target;
+      if (t && t.tagName === "SCRIPT" && /tads/.test(t.src || "")) add((e.type === "error" ? "ОШИБКА скрипта " : "скрипт ") + t.src.split("/").pop());
+    };
+    const mo = new MutationObserver((list) => {
+      for (const m of list) for (const n of m.addedNodes) if (n.nodeType === 1 && n.tagName === "DIV") add("добавлен блок на страницу");
+    });
+    window.addEventListener("message", onMsg);
+    window.addEventListener("load", onRes, true);
+    window.addEventListener("error", onRes, true);
+    mo.observe(document.body, { childList: true });
+    setTimeout(() => {
+      window.removeEventListener("message", onMsg);
+      window.removeEventListener("load", onRes, true);
+      window.removeEventListener("error", onRes, true);
+      mo.disconnect();
+      resolve(seen.length ? seen.join("; ") : "за " + ms / 1000 + " с ничего не произошло");
+    }, ms);
+  });
+}
+
 const AD_PROVIDERS = {
   // Заглушка: рисует свой «рекламный» экран без обращения к каким-либо сетям. Нужна, чтобы проверять,
   // когда именно запускается реклама (после сдачи, ничьей, победы; не зрителям и не во время партии).
@@ -280,7 +308,12 @@ const AD_PROVIDERS = {
         debug: TADS_DEBUG,
         onAdsNotFound: () => reportAdProblem("нет объявлений для показа")
       });
-      return () => controller.showAd();
+      return async () => {
+        if (!ADS_SHOW_ERRORS) return controller.showAd();
+        const watching = watchTadsRender(6000);
+        const ack = await controller.showAd();
+        return { ack: String(ack).slice(0, 40), after: await watching };
+      };
     }
   }
 };
