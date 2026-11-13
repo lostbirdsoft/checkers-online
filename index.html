@@ -7,7 +7,11 @@
   <title>Шашки онлайн</title>
   <link rel="stylesheet" href="style.css">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script type="module" src="app.js?v=13"></script>
+  <script type="module">
+    // app.js загружается с меткой времени (раз в минуту), поэтому после обновления файла на GitHub
+    // его больше не нужно "будить" ручной сменой версии в этой строке.
+    import("./app.js?t=" + Math.floor(Date.now() / 60000));
+  </script>
 </head>
 <body>
   <main class="game">
