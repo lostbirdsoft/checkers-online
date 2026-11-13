@@ -219,21 +219,63 @@ function playMoveSound() {
   } catch (e) {}
 }
 
-// ---------- AdsGram: реклама после окончания партии (Interstitial) ----------
-const ADS_ENABLED = false; // false = реклама полностью выключена (для тестов), игра работает как обычно
+// ---------- РЕКЛАМА: универсальный слой (Interstitial после партии) ----------
+// Выбор рекламной сети одним флагом: "adsgram" | "tads" | "none" (реклама выключена).
+const ADS_PROVIDER = "tads";
+
 const ADSGRAM_BLOCK_ID = "int-59594";
-let adController = null;
-try {
-  if (ADS_ENABLED && window.Adsgram) adController = window.Adsgram.init({ blockId: ADSGRAM_BLOCK_ID });
-} catch (e) {}
+const TADS_WIDGET_ID = null;  // вставь сюда ID виджета из кабинета tads.me (пока null — Tads не запускается)
+const TADS_DEBUG = true;      // true = тест (просмотры не считаются), для боевого режима поставь false
+
+// Чтобы добавить новую сеть, достаточно добавить сюда запись:
+// script — адрес SDK, create() — создаёт показ и возвращает функцию () => Promise (или null, если сеть не настроена).
+const AD_PROVIDERS = {
+  adsgram: {
+    script: "https://sad.adsgram.ai/js/sad.min.js",
+    create() {
+      const controller = window.Adsgram.init({ blockId: ADSGRAM_BLOCK_ID });
+      return () => controller.show();
+    }
+  },
+  tads: {
+    script: "https://w.tads.me/widget.js",
+    create() {
+      if (!TADS_WIDGET_ID) return null;
+      const controller = window.tads.init({
+        widgetId: TADS_WIDGET_ID,
+        type: "fullscreen",
+        debug: TADS_DEBUG,
+        onAdsNotFound: () => {}
+      });
+      return () => controller.showAd();
+    }
+  }
+};
+
+let adShow = null;
+const adsReady = (async () => {
+  const provider = AD_PROVIDERS[ADS_PROVIDER];
+  if (!provider) return; // "none" или неизвестное значение: рекламы нет, SDK даже не загружается
+  try {
+    await new Promise((resolve, reject) => {
+      const tag = document.createElement("script");
+      tag.src = provider.script;
+      tag.onload = resolve;
+      tag.onerror = reject;
+      document.head.appendChild(tag);
+    });
+    adShow = provider.create();
+  } catch (e) {
+    adShow = null; // сеть недоступна или заблокирована: игра работает без рекламы
+  }
+})();
 
 function showEndGameAd() {
-  if (!adController) return;
   // Небольшая пауза, чтобы игроки успели увидеть результат партии.
-  setTimeout(() => {
-    try {
-      adController.show().catch(() => {});
-    } catch (e) {}
+  setTimeout(async () => {
+    await adsReady;
+    if (!adShow) return;
+    try { await adShow(); } catch (e) {}
   }, 1500);
 }
 
