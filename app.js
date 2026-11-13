@@ -358,14 +358,26 @@ function reportAdProblem(text) {
 function showEndGameAd() {
   // Небольшая пауза, чтобы игроки успели увидеть результат партии.
   setTimeout(async () => {
-    await adsReady;
-    if (!adShow) { reportAdProblem(ADS_PROVIDER === "none" ? "выключена" : "не запущена (проверь ID или загрузку SDK)"); return; }
+    // Для тестов: если за 15 секунд не было ни рекламы, ни ошибки, показываем, на каком шаге всё зависло.
+    let stage = "ожидание загрузки SDK";
+    let finished = false;
+    const watchdog = setTimeout(() => {
+      if (!finished) reportAdProblem("нет ответа за 15 с, шаг: " + stage + " (либо реклама ещё идёт)");
+    }, 15000);
     try {
+      await adsReady;
+      if (!adShow) { reportAdProblem(ADS_PROVIDER === "none" ? "выключена" : "не запущена (проверь ID или загрузку SDK)"); return; }
+      stage = "ожидание ответа сети";
       const result = await adShow();
       // Для тестов: показываем, что вернула рекламная сеть (потом отключается флагом ADS_SHOW_ERRORS).
       let text; try { text = JSON.stringify(result); } catch (e) { text = String(result); }
       reportAdProblem("ответ сети: " + (text === undefined ? "пусто (без ошибки)" : text));
-    } catch (e) { reportAdProblem("ошибка: " + String((e && e.message) || e)); }
+    } catch (e) {
+      reportAdProblem("ошибка: " + String((e && e.message) || e));
+    } finally {
+      finished = true;
+      clearTimeout(watchdog);
+    }
   }, 1500);
 }
 
