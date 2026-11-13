@@ -220,7 +220,7 @@ function playMoveSound() {
 }
 
 // ---------- AdsGram: реклама после окончания партии (Interstitial) ----------
-const ADS_ENABLED = true; // false = реклама полностью выключена (для тестов), игра работает как обычно
+const ADS_ENABLED = false; // false = реклама полностью выключена (для тестов), игра работает как обычно
 const ADSGRAM_BLOCK_ID = "int-59594";
 let adController = null;
 try {
