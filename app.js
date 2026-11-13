@@ -24,7 +24,12 @@ const firebaseConfig = {
 const API_URL = "https://script.google.com/macros/s/AKfycbyvk-hhak1TmeHWAeWxkfEWWwWadu-0RAgyR8SOOGf_NJ5Rl886wla4aeMkuk-blAMimA/exec";
 
 // JSONP lets the Mini App call Google Apps Script without browser CORS issues.
+// Адрес игрового сервера на Cloudflare, например "wss://kadenuk-checkers.ВАШ-ПОДДОМЕН.workers.dev".
+// Пока пусто — игра работает по-старому через Apps Script и Firebase.
+const WORKER_URL = "wss://kadenuk-checkers.lostbirdsoft.workers.dev";
+
 function apiCall(action, data = {}) {
+  if (WORKER_URL) return wsCall(action, data);
   return new Promise((resolve, reject) => {
     const requestStarted = performance.now();
     const clientSentAt = Date.now();
@@ -90,6 +95,136 @@ function apiCall(action, data = {}) {
       "&payload=" + encodeURIComponent(JSON.stringify(payload));
     document.head.appendChild(script);
   });
+}
+
+// ---------- WebSocket к Cloudflare Worker ----------
+let wsSocket = null;
+let wsConnecting = null;
+let wsReqId = 0;
+const wsPending = new Map();
+let wsPingTimer = null;
+
+function wsConnect() {
+  if (wsSocket && wsSocket.readyState === 1) return Promise.resolve(wsSocket);
+  if (wsConnecting) return wsConnecting;
+
+  wsConnecting = new Promise((resolve, reject) => {
+    const socket = new WebSocket(WORKER_URL.replace(/\/$/, "") + "/ws?room=" + encodeURIComponent(roomId));
+    socket._joined = false;
+
+    socket.onopen = () => {
+      wsSocket = socket;
+      wsConnecting = null;
+      clearInterval(wsPingTimer);
+      wsPingTimer = setInterval(() => {
+        if (socket.readyState === 1) socket.send("ping");
+      }, 25000);
+      resolve(socket);
+    };
+
+    socket.onerror = () => {
+      if (wsConnecting) {
+        wsConnecting = null;
+        reject(new Error("Не удалось связаться с игровым сервером."));
+      }
+    };
+
+    socket.onmessage = (event) => {
+      if (event.data === "pong") return;
+      let msg;
+      try { msg = JSON.parse(event.data); } catch (e) { return; }
+
+      if (msg.type === "state") {
+        applyWorkerState(msg);
+        return;
+      }
+
+      const pending = wsPending.get(msg.id);
+      if (!pending) return;
+      wsPending.delete(msg.id);
+      if (msg.ok) pending.resolve(msg);
+      else pending.reject(new Error(msg.error || "Ошибка игрового сервера"));
+    };
+
+    socket.onclose = () => {
+      clearInterval(wsPingTimer);
+      if (wsSocket === socket) wsSocket = null;
+      wsPending.forEach(p => p.reject(new Error("Соединение с игровым сервером потеряно.")));
+      wsPending.clear();
+      // Если уже были в комнате — переподключаемся и входим заново.
+      if (joined) {
+        setTimeout(() => { wsCall("join").catch(() => {}); }, 1500);
+      }
+    };
+  });
+
+  return wsConnecting;
+}
+
+function wsSend(socket, action, data) {
+  return new Promise((resolve, reject) => {
+    const id = ++wsReqId;
+    const timeout = setTimeout(() => {
+      wsPending.delete(id);
+      reject(new Error("Игровой сервер не ответил вовремя."));
+    }, 20000);
+    wsPending.set(id, {
+      resolve: (r) => { clearTimeout(timeout); resolve(r); },
+      reject: (e) => { clearTimeout(timeout); reject(e); }
+    });
+    socket.send(JSON.stringify({ id, action, initData: tg?.initData || "", ...data }));
+  });
+}
+
+async function wsCall(action, data = {}) {
+  const requestStarted = performance.now();
+  try {
+    const socket = await wsConnect();
+    if (action !== "join" && !socket._joined) {
+      await wsSend(socket, "join", {});
+      socket._joined = true;
+    }
+    const result = await wsSend(socket, action, data);
+    if (action === "join") socket._joined = true;
+
+    savePerf({
+      type: "api_response",
+      action,
+      transport: "websocket",
+      durationMs: Number((performance.now() - requestStarted).toFixed(2)),
+      server: result.perf || null,
+      success: true
+    });
+    return result;
+  } catch (error) {
+    savePerf({
+      type: "api_error",
+      action,
+      transport: "websocket",
+      durationMs: Number((performance.now() - requestStarted).toFixed(2)),
+      error: String(error.message || error)
+    });
+    throw error;
+  }
+}
+
+function applyWorkerState(msg) {
+  players = msg.players || {};
+  updatePlayersUI();
+
+  if (msg.game && msg.game.updatedAt) {
+    savePerf({
+      type: "ws_game_update",
+      moveCount: Number(msg.game.moveCount || 0),
+      turn: Number(msg.game.turn || 0),
+      receiveDelayMs: Date.now() - Number(msg.game.updatedAt)
+    });
+  }
+
+  game = msg.game || { status: "waiting", board: initialBoard(), turn: RED };
+  selected = null;
+  legalMovesForSelection = [];
+  render();
 }
 
 // Telegram
@@ -645,6 +780,7 @@ async function joinRoom() {
 
 // Player list listener also starts the game when the second participant arrives.
 onValue(playersRef, snapshot => {
+  if (WORKER_URL) return;
   players = snapshot.val() || {};
   updatePlayersUI();
 
@@ -654,6 +790,7 @@ onValue(playersRef, snapshot => {
 });
 
 onValue(gameRef, snapshot => {
+  if (WORKER_URL) return;
   const value = snapshot.val();
 
   if (value && value.updatedAt) {
