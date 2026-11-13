@@ -10,7 +10,11 @@
   <script type="module">
     // app.js загружается с меткой времени (раз в минуту), поэтому после обновления файла на GitHub
     // его больше не нужно "будить" ручной сменой версии в этой строке.
-    import("./app.js?t=" + Math.floor(Date.now() / 60000));
+    import("./app.js?t=" + Math.floor(Date.now() / 60000)).catch((error) => {
+      // Если app.js не загрузился или в нём ошибка, показываем причину вместо молчаливой пустой страницы.
+      const text = "Не удалось запустить игру: " + (error && error.message ? error.message : error);
+      try { window.Telegram.WebApp.showAlert(text.slice(0, 250)); } catch (e) { alert(text); }
+    });
   </script>
 </head>
 <body>
