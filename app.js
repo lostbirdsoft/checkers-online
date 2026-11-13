@@ -220,16 +220,20 @@ function playMoveSound() {
 }
 
 // ---------- РЕКЛАМА: универсальный слой (Interstitial после партии) ----------
-// Выбор рекламной сети одним флагом: "adsgram" | "tads" | "test" (своя заглушка для тестов, без сетей) | "none" (выключена).
-const ADS_PROVIDER = "tads";
+// Выбор рекламной сети одним флагом: "adsgram" | "tads" | "monetag" | "test" (своя заглушка для тестов, без сетей) | "none" (выключена).
+const ADS_PROVIDER = "monetag";
 
 const ADSGRAM_BLOCK_ID = "int-59594";
 const TADS_WIDGET_ID = 13281;  // вставь сюда ID виджета из кабинета tads.me (пока null — Tads не запускается)
 const ADS_SHOW_ERRORS = true;  // true = при проблеме с рекламой показывать окно с причиной (для тестов), потом поставь false
-const TADS_DEBUG = false;      // true = тест (просмотры не считаются), для боевого режима поставь false
+const TADS_DEBUG = true;       // true = тест (просмотры не считаются), для боевого режима поставь false
 
 // Чтобы добавить новую сеть, достаточно добавить сюда запись:
 // script — адрес SDK, create() — создаёт показ и возвращает функцию () => Promise (или null, если сеть не настроена).
+// Monetag: ID зоны и адрес SDK берутся из тега «Get SDK» в кабинете Monetag (<script src="ВОТ_ЭТОТ_АДРЕС" data-zone="...">).
+const MONETAG_ZONE = 12255757;
+const MONETAG_SDK_SRC = "https://libtl.com/sdk.js";
+
 // Диагностика Tads: showAd() только заказывает шаблон рекламы, а сама реклама рисуется позже.
 // Эта функция несколько секунд следит, что именно произошло после заказа (для тестов, флаг ADS_SHOW_ERRORS).
 function watchTadsRender(ms) {
@@ -259,6 +263,15 @@ function watchTadsRender(ms) {
 }
 
 const AD_PROVIDERS = {
+  monetag: {
+    script: MONETAG_SDK_SRC,
+    attrs: { "data-zone": String(MONETAG_ZONE), "data-sdk": "show_" + MONETAG_ZONE },
+    create() {
+      const show = window["show_" + MONETAG_ZONE];
+      if (typeof show !== "function") return null;
+      return () => show();
+    }
+  },
   // Заглушка: рисует свой «рекламный» экран без обращения к каким-либо сетям. Нужна, чтобы проверять,
   // когда именно запускается реклама (после сдачи, ничьей, победы; не зрителям и не во время партии).
   test: {
@@ -326,6 +339,7 @@ const adsReady = (async () => {
     if (provider.script) await new Promise((resolve, reject) => {
       const tag = document.createElement("script");
       tag.src = provider.script;
+      if (provider.attrs) for (const k in provider.attrs) tag.setAttribute(k, provider.attrs[k]);
       tag.onload = resolve;
       tag.onerror = reject;
       document.head.appendChild(tag);
