@@ -219,6 +219,24 @@ function playMoveSound() {
   } catch (e) {}
 }
 
+// ---------- AdsGram: реклама после окончания партии (Interstitial) ----------
+const ADS_ENABLED = true; // false = реклама полностью выключена (для тестов), игра работает как обычно
+const ADSGRAM_BLOCK_ID = "int-59594";
+let adController = null;
+try {
+  if (ADS_ENABLED && window.Adsgram) adController = window.Adsgram.init({ blockId: ADSGRAM_BLOCK_ID });
+} catch (e) {}
+
+function showEndGameAd() {
+  if (!adController) return;
+  // Небольшая пауза, чтобы игроки успели увидеть результат партии.
+  setTimeout(() => {
+    try {
+      adController.show().catch(() => {});
+    } catch (e) {}
+  }, 1500);
+}
+
 function applyWorkerState(msg) {
   players = msg.players || {};
   updatePlayersUI();
@@ -235,6 +253,11 @@ function applyWorkerState(msg) {
   if (msg.game && game && Number(msg.game.moveCount || 0) > Number(game.moveCount || 0)) {
     playMoveSound();
   }
+
+  // Реклама только игрокам (не зрителям) и только в момент окончания партии.
+  const gameJustEnded = game && game.status === "active" && msg.game &&
+    (msg.game.status === "finished" || msg.game.status === "draw");
+  if (gameJustEnded && myPlayer) showEndGameAd();
 
   game = msg.game || { status: "waiting", board: initialBoard(), turn: RED };
   selected = null;
