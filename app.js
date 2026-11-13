@@ -648,7 +648,7 @@ function render() {
     setStatus("Отправьте приглашение в группу. Партия начнётся автоматически, когда присоединится соперник.");
   } else if (game.status === "active") {
     el.turnInfo.textContent = `Ход: ${getName(game.turn)}`;
-    if (game.drawOffer && Number(game.drawOffer.by) !== myPlayer) {
+    if (myPlayer && game.drawOffer && Number(game.drawOffer.by) !== myPlayer) {
       setStatus(`${getName(game.drawOffer.by)} предлагает ничью. Нажмите «Предложить ничью», чтобы принять её.`);
       el.drawButton.textContent = "Принять ничью";
     } else if (game.drawOffer && Number(game.drawOffer.by) === myPlayer) {
@@ -672,7 +672,7 @@ function render() {
   const active = game.status === "active" && !!myPlayer && !!players["1"] && !!players["2"];
   el.drawButton.disabled = !active || busy;
   el.resignButton.disabled = !active || busy;
-  el.rematchButton.hidden = !(game.status === "finished" || game.status === "draw");
+  el.rematchButton.hidden = !myPlayer || !(game.status === "finished" || game.status === "draw");
   if (el.rematchButton.hidden) {
     el.rematchButton.textContent = "Реванш";
   } else {
@@ -785,7 +785,8 @@ async function joinRoom() {
     players = result.players || {};
     joined = true;
     updatePlayersUI();
-    setStatus(myPlayer === RED ? "Вы играете красными." : "Вы играете чёрными.");
+    if (result.spectator) setStatus("Комната заполнена. Вы наблюдаете за партией.");
+    else setStatus(myPlayer === RED ? "Вы играете красными." : "Вы играете чёрными.");
     render();
   } catch (error) {
     console.error(error);
