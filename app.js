@@ -220,17 +220,49 @@ function playMoveSound() {
 }
 
 // ---------- РЕКЛАМА: универсальный слой (Interstitial после партии) ----------
-// Выбор рекламной сети одним флагом: "adsgram" | "tads" | "none" (реклама выключена).
-const ADS_PROVIDER = "tads";
+// Выбор рекламной сети одним флагом: "adsgram" | "tads" | "test" (своя заглушка для тестов, без сетей) | "none" (выключена).
+const ADS_PROVIDER = "test";
 
 const ADSGRAM_BLOCK_ID = "int-59594";
-const TADS_WIDGET_ID = 13281;  // вставь сюда ID виджета из кабинета tads.me (пока null — Tads не запускается)
+const TADS_WIDGET_ID = null;  // вставь сюда ID виджета из кабинета tads.me (пока null — Tads не запускается)
 const ADS_SHOW_ERRORS = true;  // true = при проблеме с рекламой показывать окно с причиной (для тестов), потом поставь false
-const TADS_DEBUG = false;      // true = тест (просмотры не считаются), для боевого режима поставь false
+const TADS_DEBUG = true;      // true = тест (просмотры не считаются), для боевого режима поставь false
 
 // Чтобы добавить новую сеть, достаточно добавить сюда запись:
 // script — адрес SDK, create() — создаёт показ и возвращает функцию () => Promise (или null, если сеть не настроена).
 const AD_PROVIDERS = {
+  // Заглушка: рисует свой «рекламный» экран без обращения к каким-либо сетям. Нужна, чтобы проверять,
+  // когда именно запускается реклама (после сдачи, ничьей, победы; не зрителям и не во время партии).
+  test: {
+    script: null,
+    create() {
+      return () => new Promise((resolve) => {
+        const box = document.createElement("div");
+        box.style.cssText = "position:fixed;inset:0;z-index:99999;background:rgba(10,12,20,.96);color:#fff;" +
+          "display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;" +
+          "font-family:sans-serif;text-align:center;padding:24px";
+        box.innerHTML = '<div style="font-size:44px">🧪</div>' +
+          '<div style="font-size:20px;font-weight:700">ТЕСТОВАЯ РЕКЛАМА</div>' +
+          '<div style="opacity:.7;font-size:14px">Заглушка, сети не вызываются</div>';
+        const btn = document.createElement("button");
+        btn.style.cssText = "margin-top:10px;padding:12px 28px;font-size:16px;border:0;border-radius:10px;opacity:.5";
+        btn.disabled = true;
+        box.appendChild(btn);
+        document.body.appendChild(box);
+        let left = 3;
+        btn.textContent = "Закрыть через " + left;
+        const timer = setInterval(() => {
+          left--;
+          if (left > 0) { btn.textContent = "Закрыть через " + left; return; }
+          clearInterval(timer);
+          btn.textContent = "Закрыть";
+          btn.disabled = false;
+          btn.style.opacity = "1";
+        }, 1000);
+        btn.onclick = () => { box.remove(); resolve({ done: true, test: true }); };
+      });
+    }
+  },
   adsgram: {
     script: "https://sad.adsgram.ai/js/sad.min.js",
     create() {
@@ -258,7 +290,7 @@ const adsReady = (async () => {
   const provider = AD_PROVIDERS[ADS_PROVIDER];
   if (!provider) return; // "none" или неизвестное значение: рекламы нет, SDK даже не загружается
   try {
-    await new Promise((resolve, reject) => {
+    if (provider.script) await new Promise((resolve, reject) => {
       const tag = document.createElement("script");
       tag.src = provider.script;
       tag.onload = resolve;
@@ -281,7 +313,12 @@ function showEndGameAd() {
   setTimeout(async () => {
     await adsReady;
     if (!adShow) { reportAdProblem(ADS_PROVIDER === "none" ? "выключена" : "не запущена (проверь ID или загрузку SDK)"); return; }
-    try { await adShow(); } catch (e) { reportAdProblem(String((e && e.message) || e)); }
+    try {
+      const result = await adShow();
+      // Для тестов: показываем, что вернула рекламная сеть (потом отключается флагом ADS_SHOW_ERRORS).
+      let text; try { text = JSON.stringify(result); } catch (e) { text = String(result); }
+      reportAdProblem("ответ сети: " + (text === undefined ? "пусто (без ошибки)" : text));
+    } catch (e) { reportAdProblem("ошибка: " + String((e && e.message) || e)); }
   }, 1500);
 }
 
