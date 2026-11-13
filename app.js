@@ -224,7 +224,8 @@ function playMoveSound() {
 const ADS_PROVIDER = "tads";
 
 const ADSGRAM_BLOCK_ID = "int-59594";
-const TADS_WIDGET_ID = 13281;  // вставь сюда ID виджета из кабинета tads.me (пока null — Tads не запускается)
+const TADS_WIDGET_ID = null;  // вставь сюда ID виджета из кабинета tads.me (пока null — Tads не запускается)
+const ADS_SHOW_ERRORS = true;  // true = при проблеме с рекламой показывать окно с причиной (для тестов), потом поставь false
 const TADS_DEBUG = true;      // true = тест (просмотры не считаются), для боевого режима поставь false
 
 // Чтобы добавить новую сеть, достаточно добавить сюда запись:
@@ -245,7 +246,7 @@ const AD_PROVIDERS = {
         widgetId: TADS_WIDGET_ID,
         type: "fullscreen",
         debug: TADS_DEBUG,
-        onAdsNotFound: () => {}
+        onAdsNotFound: () => reportAdProblem("нет объявлений для показа")
       });
       return () => controller.showAd();
     }
@@ -270,12 +271,17 @@ const adsReady = (async () => {
   }
 })();
 
+function reportAdProblem(text) {
+  if (!ADS_SHOW_ERRORS) return;
+  try { window.Telegram.WebApp.showAlert("Реклама (" + ADS_PROVIDER + "): " + text); } catch (e) {}
+}
+
 function showEndGameAd() {
   // Небольшая пауза, чтобы игроки успели увидеть результат партии.
   setTimeout(async () => {
     await adsReady;
-    if (!adShow) return;
-    try { await adShow(); } catch (e) {}
+    if (!adShow) { reportAdProblem(ADS_PROVIDER === "none" ? "выключена" : "не запущена (проверь ID или загрузку SDK)"); return; }
+    try { await adShow(); } catch (e) { reportAdProblem(String((e && e.message) || e)); }
   }, 1500);
 }
 
