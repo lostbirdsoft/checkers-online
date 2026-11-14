@@ -221,11 +221,15 @@ function playMoveSound() {
 
 // ---------- РЕКЛАМА: универсальный слой (Interstitial после партии) ----------
 // Выбор рекламной сети одним флагом: "adsgram" | "tads" | "monetag" | "test" (своя заглушка для тестов, без сетей) | "none" (выключена).
-const ADS_PROVIDER = "test";
+const ADS_PROVIDER = "adsgram";
 
-const ADSGRAM_BLOCK_ID = "int-59594";
+// AdsGram: один флаг переключает тестовый блок и боевой.
+const ADSGRAM_TEST_MODE = true;               // true = тестовый блок (просмотры не считаются), false = боевой блок
+const ADSGRAM_BLOCK_ID_LIVE = "int-59594";    // боевой Interstitial
+const ADSGRAM_BLOCK_ID_TEST = "int-59706";    // тестовый Interstitial (тестовая площадка)
+const ADSGRAM_BLOCK_ID = ADSGRAM_TEST_MODE ? ADSGRAM_BLOCK_ID_TEST : ADSGRAM_BLOCK_ID_LIVE;
 const TADS_WIDGET_ID = 13281;  // вставь сюда ID виджета из кабинета tads.me (пока null — Tads не запускается)
-const ADS_SHOW_ERRORS = false;  // true = при проблеме с рекламой показывать окно с причиной (для тестов), потом поставь false
+const ADS_SHOW_ERRORS = true;  // true = при проблеме с рекламой показывать окно с причиной (для тестов), потом поставь false
 const TADS_DEBUG = true;       // true = тест (просмотры не считаются), для боевого режима поставь false
 
 // Чтобы добавить новую сеть, достаточно добавить сюда запись:
@@ -269,7 +273,12 @@ const AD_PROVIDERS = {
     create() {
       const show = window["show_" + MONETAG_ZONE];
       if (typeof show !== "function") return null;
-      return () => show();
+      // По документации Monetag: сначала предзагрузка, потом показ (так же видно причину, если рекламы нет).
+      return async () => {
+        const ymid = String(roomId);
+        await show({ type: "preload", ymid: ymid });
+        return show({ ymid: ymid });
+      };
     }
   },
   // Заглушка: рисует свой «рекламный» экран без обращения к каким-либо сетям. Нужна, чтобы проверять,
