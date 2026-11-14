@@ -224,7 +224,7 @@ function playMoveSound() {
 const ADS_PROVIDER = "adsgram";
 
 // Когда показывать рекламу после партии (все условия должны выполняться одновременно):
-const ADS_MIN_GAME_SECONDS = 60;  // не показывать, если партия длилась меньше стольки секунд (0 = без ограничения)
+const ADS_MIN_GAME_SECONDS = 1;  // не показывать, если партия длилась меньше стольки секунд (0 = без ограничения)
 const ADS_ON_WIN = true;          // после победы/поражения (партия закончилась ходами)
 const ADS_ON_RESIGN = true;       // после сдачи
 const ADS_ON_DRAW = true;         // после ничьей (по согласию, повторению или правилу 80 ходов)
@@ -235,7 +235,7 @@ const ADSGRAM_BLOCK_ID_LIVE = "int-59594";    // боевой Interstitial
 const ADSGRAM_BLOCK_ID_TEST = "int-59706";    // тестовый Interstitial (тестовая площадка)
 const ADSGRAM_BLOCK_ID = ADSGRAM_TEST_MODE ? ADSGRAM_BLOCK_ID_TEST : ADSGRAM_BLOCK_ID_LIVE;
 const TADS_WIDGET_ID = 13281;  // вставь сюда ID виджета из кабинета tads.me (пока null — Tads не запускается)
-const ADS_SHOW_ERRORS = true;  // true = при проблеме с рекламой показывать окно с причиной (для тестов), потом поставь false
+const ADS_SHOW_ERRORS = false;  // true = при проблеме с рекламой показывать окно с причиной (для тестов), потом поставь false
 const TADS_DEBUG = true;       // true = тест (просмотры не считаются), для боевого режима поставь false
 
 // Чтобы добавить новую сеть, достаточно добавить сюда запись:
