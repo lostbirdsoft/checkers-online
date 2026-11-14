@@ -223,6 +223,12 @@ function playMoveSound() {
 // Выбор рекламной сети одним флагом: "adsgram" | "tads" | "monetag" | "test" (своя заглушка для тестов, без сетей) | "none" (выключена).
 const ADS_PROVIDER = "adsgram";
 
+// Когда показывать рекламу после партии (все условия должны выполняться одновременно):
+const ADS_MIN_GAME_SECONDS = 60;  // не показывать, если партия длилась меньше стольки секунд (0 = без ограничения)
+const ADS_ON_WIN = true;          // после победы/поражения (партия закончилась ходами)
+const ADS_ON_RESIGN = true;       // после сдачи
+const ADS_ON_DRAW = true;         // после ничьей (по согласию, повторению или правилу 80 ходов)
+
 // AdsGram: один флаг переключает тестовый блок и боевой.
 const ADSGRAM_TEST_MODE = true;               // true = тестовый блок (просмотры не считаются), false = боевой блок
 const ADSGRAM_BLOCK_ID_LIVE = "int-59594";    // боевой Interstitial
@@ -364,6 +370,25 @@ function reportAdProblem(text) {
   try { window.Telegram.WebApp.showAlert("Реклама (" + ADS_PROVIDER + "): " + text); } catch (e) {}
 }
 
+// Проверяет, подходит ли завершившаяся партия под условия показа рекламы.
+function adAllowedForGame(g) {
+  const reason = String((g && g.resultReason) || "");
+  const kind = g.status === "draw" ? "draw" : (/сдал/i.test(reason) ? "resign" : "win");
+  const allowed = kind === "draw" ? ADS_ON_DRAW : kind === "resign" ? ADS_ON_RESIGN : ADS_ON_WIN;
+  if (!allowed) { reportAdProblem("пропущена: реклама для типа «" + kind + "» выключена"); return false; }
+
+  const start = Number(g.createdAt || 0);
+  const end = Number(g.finishedAt || g.updatedAt || 0);
+  if (start && end && ADS_MIN_GAME_SECONDS > 0) {
+    const seconds = Math.round((end - start) / 1000);
+    if (seconds < ADS_MIN_GAME_SECONDS) {
+      reportAdProblem("пропущена: партия длилась " + seconds + " с, нужно минимум " + ADS_MIN_GAME_SECONDS + " с");
+      return false;
+    }
+  }
+  return true;
+}
+
 function showEndGameAd() {
   // Небольшая пауза, чтобы игроки успели увидеть результат партии.
   setTimeout(async () => {
@@ -410,7 +435,7 @@ function applyWorkerState(msg) {
   // Реклама только игрокам (не зрителям) и только в момент окончания партии.
   const gameJustEnded = game && game.status === "active" && msg.game &&
     (msg.game.status === "finished" || msg.game.status === "draw");
-  if (gameJustEnded && myPlayer) showEndGameAd();
+  if (gameJustEnded && myPlayer && adAllowedForGame(msg.game)) showEndGameAd();
 
   game = msg.game || { status: "waiting", board: initialBoard(), turn: RED };
   selected = null;
