@@ -16,7 +16,17 @@
     })();
   </script>
   <style>
-    html[data-menu-start] body > :not(script):not(#mainMenu) { visibility: hidden; }
+    html[data-menu-start] body > :not(script):not(#mainMenu):not(#bootBg) { visibility: hidden; }
+
+    /* Заставка до загрузки меню: та же наклонная доска, что и в фоне меню, чтобы не было пустого чёрного экрана. */
+    #bootBg { display: none; }
+    html[data-menu-start] #bootBg { display: block; position: fixed; inset: 0; z-index: 9300; overflow: hidden; background: var(--bg, #111319); pointer-events: none; }
+    #bootStage {
+      position: absolute; left: 50%; top: 50%; width: 130vmin; height: 130vmin; margin: -65vmin 0 0 -65vmin; opacity: .55;
+      transform: perspective(1100px) rotateX(58deg) rotateZ(-32deg); border: 6px solid #3a2f22; box-shadow: 0 30px 60px rgba(0,0,0,.6);
+      background: conic-gradient(#161923 25%, #2e3448 0 50%, #161923 0 75%, #2e3448 0) 0 0 / 25% 25%;
+    }
+    #bootVignette { position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(17,19,25,.15) 0%, rgba(17,19,25,.9) 100%); }
   </style>
   <script type="module">
     // app.js загружается с меткой времени (раз в минуту), поэтому после обновления файла на GitHub
@@ -29,6 +39,25 @@
   </script>
 </head>
 <body>
+  <div id="bootBg"><div id="bootStage"></div><div id="bootVignette"></div></div>
+  <script>
+    // Расставляем шашки на заставке (начальная позиция, как в фоне меню).
+    (function () {
+      var stage = document.getElementById("bootStage");
+      for (var i = 0; i < 64; i++) {
+        var row = Math.floor(i / 8), col = i % 8;
+        if ((row + col) % 2 !== 1 || (row > 2 && row < 5)) continue;
+        var red = row > 4;
+        var node = document.createElement("div");
+        node.style.cssText = "position:absolute;width:12.5%;height:12.5%;left:" + col * 12.5 + "%;top:" + row * 12.5 + "%";
+        var disc = document.createElement("div");
+        disc.style.cssText = "margin:11%;height:78%;border-radius:50%;box-shadow:0 3px 8px rgba(0,0,0,.6);background:" +
+          (red ? "radial-gradient(circle at 35% 30%, #e0604f, #a8362b)" : "radial-gradient(circle at 35% 30%, #4a4f5c, #14171e)");
+        node.appendChild(disc);
+        stage.appendChild(node);
+      }
+    })();
+  </script>
   <main class="game">
     <header class="topbar">
       <div>
