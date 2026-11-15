@@ -7,6 +7,17 @@
   <title>Шашки онлайн</title>
   <link rel="stylesheet" href="style.css">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script>
+    // Если игра открыта без комнаты (из меню бота), сразу прячем игровую доску, чтобы она не мелькала перед стартовым меню.
+    (function () {
+      var tg = window.Telegram && window.Telegram.WebApp;
+      var room = (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) || new URLSearchParams(location.search).get("room");
+      if (!room) document.documentElement.setAttribute("data-menu-start", "1");
+    })();
+  </script>
+  <style>
+    html[data-menu-start] body > :not(script):not(#mainMenu) { visibility: hidden; }
+  </style>
   <script type="module">
     // app.js загружается с меткой времени (раз в минуту), поэтому после обновления файла на GitHub
     // его больше не нужно "будить" ручной сменой версии в этой строке.
