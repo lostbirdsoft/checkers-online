@@ -1,7 +1,7 @@
 // Сервис-воркер для быстрого запуска (в APK и обычном браузере; в Telegram он не включается).
 // Файлы игры открываются сразу из кэша, а свежая версия подтягивается в фоне: обновление кода приходит со следующего запуска.
 // Сбросить кэш у всех: увеличь VERSION. Выключить совсем: PWA_OFFLINE_CACHE = false в app.js (воркер снимется и кэш очистится).
-const VERSION = 1;
+const VERSION = 2;
 const CACHE = "checkers-v" + VERSION;
 const FILES = ["./", "index.html", "style.css", "app.js", "manifest.json", "icons/icon-192.png", "icons/icon-512.png",
   "sounds/select.mp3", "sounds/move.mp3", "sounds/capture.mp3", "sounds/win.mp3", "sounds/lose.mp3"];
