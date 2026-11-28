@@ -12,6 +12,8 @@
   var IP_TIMEOUT_MS = 2500;
   var FALLBACK_LANG = "ru";          // язык, пока ничего не определилось
   var IP_COUNTRY_LANG = { UA: "uk", RU: "ru", BY: "ru", KZ: "ru" }; // остальные страны мира = en
+  var LANG_FADE_ENABLED = true;      // при смене языка текст быстро затухает и появляется уже новым (false = менять мгновенно)
+  var LANG_FADE_MS = 140;            // длительность затухания в одну сторону, мс
   var STORAGE_KEY = "checkers_lang"; // сюда пишется ручной выбор игрока
   var LANGS = ["ru", "uk", "en"];    // порядок в списке
   var NAMES = { ru: "Русский", uk: "Українська", en: "English" };
@@ -182,12 +184,6 @@
     ["вне топа", "поза топом", "outside the top", true],
     ["Вы пока не играли рейтинговых партий.", "Ви поки не грали рейтингових партій.", "You haven't played any ranked games yet."],
     ["Не удалось загрузить рейтинг.", "Не вдалося завантажити рейтинг.", "Couldn't load the leaderboard."],
-    ["У каждого ", "У кожного ", "Each player has ", true],
-    [" шашек. Оттяни свою шашку назад, как рогатку, и отпусти: выбей шашки соперника с доски. ", " шашок. Відтягни свою шашку назад, як рогатку, і відпусти: вибий шашки суперника з дошки. ", " pieces. Pull your piece back like a slingshot and release: knock the opponent's pieces off the board. ", true],
-    ["Выбил чужую и не потерял свою — получаешь бонусный удар (не больше ", "Вибив чужу і не втратив свою — отримуєш бонусний удар (не більше ", "Knock out an enemy piece without losing yours and you get a bonus shot (no more than ", true],
-    [" ударов подряд). ", " ударів поспіль). ", " shots in a row). ", true],
-    ["Вылетела своя — она выбывает. ", "Вилетіла своя — вона вибуває. ", "If your own piece falls off, it's out. ", true],
-    ["Боковые борта отбивают шашки, вылететь можно только через верх и низ. ", "Бічні борти відбивають шашки, вилетіти можна лише через верх і низ. ", "The side walls bounce pieces back; they can only fall off through the top and bottom. ", true],
     ["Побеждает тот, кто выбил все шашки соперника.", "Перемагає той, хто вибив усі шашки суперника.", "The winner is whoever knocks out all of the opponent's pieces."],
     ["Соперник", "Суперник", "Opponent"],
     ["Компьютер", "Комп'ютер", "Computer"],
@@ -236,7 +232,7 @@
     ["Создать комнату", "Створити кімнату", "Create room"],
     ["Открытая", "Відкрита", "Public"],
     ["Закрытая", "Закрита", "Private"],
-    ["Открытая видна в списке, закрытая — только по коду.", "Відкрита видима в списку, закрита — лише за кодом.", "Public rooms appear in the list; private ones are code-only."],
+    ["Открытая видна в списке, закрытая – только по коду.", "Відкрита видима в списку, закрита – лише за кодом.", "Public rooms appear in the list; private ones are code-only."],
     ["Войти по коду", "Увійти за кодом", "Join by code"],
     ["КОД", "КОД", "CODE"],
     ["Код состоит из 5 символов (буквы и цифры, без 0, 1, O, I, L).", "Код складається з 5 символів (літери та цифри, без 0, 1, O, I, L).", "The code has 5 characters (letters and digits, no 0, 1, O, I, L)."],
@@ -275,14 +271,23 @@
     ["Недопустимый удар.", "Недопустимий удар.", "Invalid shot."],
     ["Слишком слабый удар.", "Занадто слабкий удар.", "The shot is too weak."],
     ["Ничья: все шашки вылетели с доски.", "Нічия: усі шашки вилетіли з дошки.", "Draw: all pieces flew off the board."],
-    ["Все шашки игрока ", "Усі шашки гравця ", "All pieces of player ", true],
-    ["Все шашки ", "Усі шашки ", "All pieces of ", true],
     [" выбиты с доски.", " вибито з дошки.", " are knocked off the board.", true],
-    ["соперника", "суперника", "the opponent", true],
     [" сдался.", " здався.", " resigned.", true],
     ["Время на ход вышло: ", "Час на хід вийшов: ", "Time's up: ", true],
     ["Время на ход ещё не вышло.", "Час на хід ще не вийшов.", "Time for the move isn't up yet."],
     ["Реванш доступен после завершения партии.", "Реванш доступний після завершення партії.", "Rematch is available after the game ends."],
+    // «Чапаев»: короткая суть и окно правил
+    ["Оттяни шашку назад, как рогатку, и отпусти: выбей шашки соперника с доски.", "Відтягни шашку назад, як рогатку, і відпусти: вибий шашки суперника з дошки.", "Pull a piece back like a slingshot and release: knock the opponent's pieces off the board."],
+    ["Правила игры", "Правила гри", "Game rules"],
+    ["У каждого игрока ", "У кожного гравця ", "Each player has ", true],
+    [" шашек.", " шашок.", " pieces.", true],
+    ["Оттяни свою шашку назад, как рогатку, и отпусти. Выбей шашки соперника с доски.", "Відтягни свою шашку назад, як рогатку, і відпусти. Вибий шашки суперника з дошки.", "Pull your piece back like a slingshot and release. Knock the opponent's pieces off the board."],
+    ["Выбил чужую шашку и не потерял свою: получаешь бонусный удар (не больше ", "Вибив чужу шашку і не втратив свою: отримуєш бонусний удар (не більше ", "Knock out an enemy piece without losing yours and you get a bonus shot (no more than ", true],
+    [" ударов подряд).", " ударів поспіль).", " shots in a row).", true],
+    ["Вылетела своя шашка: она выбывает.", "Вилетіла своя шашка: вона вибуває.", "If your own piece falls off, it's out."],
+    ["Боковые борта отбивают шашки, вылететь можно только через верх и низ.", "Бічні борти відбивають шашки, вилетіти можна лише через верх і низ.", "The side walls bounce pieces back; they can only fall off through the top and bottom."],
+    ["Все шашки игрока ", "Усі шашки гравця ", "All pieces of player ", true],
+    ["Все шашки соперника выбиты с доски.", "Усі шашки суперника вибито з дошки.", "All of the opponent's pieces are knocked off the board."],
     // Статичный текст index.html (экран партии)
     ["КОМНАТА", "КІМНАТА", "ROOM"],
     ["ЧЁРНЫЕ · ИГРОК 2", "ЧОРНІ · ГРАВЕЦЬ 2", "BLACK · PLAYER 2"],
@@ -417,14 +422,29 @@
   }
 
   var listeners = [];
-  function setLang(l, persist) {
-    l = supported(l); if (!l) return;
-    if (persist) { try { localStorage.setItem(STORAGE_KEY, l); } catch (e) {} }
-    lang = l;
+  function paintLang() {
     applyAll();
     var btn = document.getElementById("i18nLangBtn");
     if (btn) btn.firstChild.textContent = "🌐 " + SHORT[lang];
     listeners = listeners.filter(function (f) { return f(); });
+  }
+  var fadeTimer = 0;
+  function setLang(l, persist) {
+    l = supported(l); if (!l) return;
+    if (persist) { try { localStorage.setItem(STORAGE_KEY, l); } catch (e) {} }
+    var changed = l !== lang;
+    lang = l;
+    var body = document.body;
+    if (!changed || !LANG_FADE_ENABLED || !persist || !body) { paintLang(); return; }
+    // плавная смена: быстро гасим экран, меняем текст, показываем снова
+    clearTimeout(fadeTimer);
+    body.style.transition = "opacity " + LANG_FADE_MS + "ms ease";
+    body.style.opacity = "0";
+    fadeTimer = setTimeout(function () {
+      paintLang();
+      body.style.opacity = "1";
+      fadeTimer = setTimeout(function () { body.style.transition = ""; body.style.opacity = ""; }, LANG_FADE_MS + 30);
+    }, LANG_FADE_MS);
   }
 
   // --- Переключатель языка: ряд из трёх кнопок (для настроек) ---
